@@ -6,6 +6,7 @@ from sklearn.utils.linear_assignment_ import linear_assignment
 from kalman import *
 import copy
 import warnings
+import re
 warnings.filterwarnings("ignore")
 
 min_hits=1
@@ -13,6 +14,9 @@ max_age=4
 tracker_list=[]
 outputFile='YOLO_Kalman_hungarian.avi'
 
+dict_class={"person":1,"car":2,"motorbike":3,"bicycle":4,"truck":5,"bus":6}
+
+count_class=[0]*7
 
 def iou_intersection(a, b):
     w_intsec = np.maximum (0, (np.minimum(a[2], b[2]) - np.maximum(a[0], b[0])))
@@ -104,6 +108,9 @@ while cv.waitKey(1)<0:
 		#tracker is not avilable so create a new tracker
 		for trk in unmatched_detector:
 			z=z_box[trk]
+			class_name=PredClass[trk]
+			temp_count=count_class[dict_class[class_name]]
+			count_class[dict_class[class_name]]+=1
 			z=np.expand_dims(z,axis=0).T
 			new_tracker_object=Tracker()
 			x=np.array([[z[0],0,z[1],0,z[2],0,z[3],0]]).T
@@ -113,6 +120,7 @@ while cv.waitKey(1)<0:
 			new_x=[x[0],x[2],x[4],x[6]]
 			x_box.append(new_x)
 			new_tracker_object.box=new_x
+			new_tracker_object.id=class_name+str(':')+str(temp_count)
 			tracker_list.append(new_tracker_object)
 
 	if(unmatched_tracker.size>0):
@@ -132,9 +140,14 @@ while cv.waitKey(1)<0:
 			x_cv2=trk.box
 			(x1,y1,x2,y2)=x_cv2
 			cv.rectangle(frame,(x1,y1),(x2,y2),(0,255,0),2)
+			cv.putText(frame,trk.id,(x1,y1),cv.FONT_HERSHEY_SIMPLEX,0.5,(255,0,0),2)
 			cv.imshow("Frame",frame)
 			vid_writer.write(frame.astype(np.uint8))
-
+	for x in tracker_list:
+		if(x.no_losses>max_age):
+			print("object leaving:",x.id)
+			temp=re.findall('[a-z]+',x.id)[0]
+			count_class[dict_class[temp]]-=1
 	tracker_list = [x for x in tracker_list if x.no_losses<=max_age]
 '''
 	index=-1
